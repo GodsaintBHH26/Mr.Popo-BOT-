@@ -1,2 +1,6 @@
 discord.py
 python-dotenv
+pillow
+pytesseract
+opencv-python
+imagehash

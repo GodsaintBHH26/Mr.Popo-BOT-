@@ -3,7 +3,6 @@ from discord.ext import commands
 import logging
 from dotenv import load_dotenv
 import os
-import datetime
 
 load_dotenv()
 
@@ -16,14 +15,30 @@ intents.members=True
 
 bot=commands.Bot(command_prefix='&', intents=intents)
 
+# The events that occurs automatically -------------------------------------------
+
 @bot.event
 async def on_ready():
     print(f"We are Ready to go in {bot.user.name}")
 
+# The event that will occur when the bot joins a server for the first time
+@bot.event
+async def on_guild_join(guild):
+    general_channel = discord.utils.find(
+        lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
+        guild.text_channels
+    )
+    if general_channel:
+        intro_msg = "Hello @everyone, I'm the new aide for the owner of this server. My name is Popo, You may call me Mr.Popo. Happy(😒) to be here. Worthless m@gots."
+        await general_channel.send(intro_msg)
+    
+    
+# The event that occurs when a new member joins the server
 @bot.event
 async def on_member_join(member):
     await member.send(f'Welcome to the server {member.name}')
 
+# The event where the bot may delete an user's message if it contains a certain words
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
