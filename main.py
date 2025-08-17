@@ -3,6 +3,9 @@ from discord.ext import commands
 import logging
 from dotenv import load_dotenv
 import os
+import asyncio
+from ocr_check import img_validation
+from db_bot import create_db_pool
 
 load_dotenv()
 
@@ -20,6 +23,10 @@ bot=commands.Bot(command_prefix='&', intents=intents)
 @bot.event
 async def on_ready():
     print(f"We are Ready to go in {bot.user.name}")
+    
+async def main():
+    await create_db_pool()
+    
 
 # The event that will occur when the bot joins a server for the first time
 @bot.event
@@ -39,13 +46,27 @@ async def on_member_join(member):
     await member.send(f'Welcome to the server {member.name}')
 
 # The event where the bot may delete an user's message if it contains a certain words
+# @bot.event
+# async def on_message(message):
+#     if message.author == bot.user:
+#         return
+#     if 'shit' in message.content.lower():
+#         await message.delete()
+#         await message.channel.send(f'Language, {message.author.mention}')
+    
+#     await bot.process_commands(message)
+
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
-    if 'shit' in message.content.lower():
-        await message.delete()
-        await message.channel.send(f'Language, {message.author.mention}')
+
+    if message.attachments:
+        for attachment in message.attachments:
+            if attachment.content_type and attachment.content_type.startswith('image/'):
+                img_bytes = await attachment.read()
+                num, text = img_validation([{"bytes":img_bytes}])
+                await message.channel.send(f'The text in that image: {text}')
     
     await bot.process_commands(message)
 
