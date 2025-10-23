@@ -11,10 +11,11 @@ load_dotenv()
 
 token= os.getenv('DISCORD_TOKEN')
 
-handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
 intents = discord.Intents.default()
 intents.message_content=True
 intents.members=True
+
+logging.basicConfig(filename='discord.log', encoding='utf-8', level=logging.DEBUG, filemode='w')
 
 bot=commands.Bot(command_prefix='&', intents=intents)
 
@@ -26,7 +27,10 @@ async def on_ready():
     
 async def main():
     await create_db_pool()
-    
+    async with bot:
+        await bot.start(token)
+
+
 
 # The event that will occur when the bot joins a server for the first time
 @bot.event
@@ -60,14 +64,18 @@ async def on_member_join(member):
 async def on_message(message):
     if message.author == bot.user:
         return
-
-    if message.attachments:
-        for attachment in message.attachments:
-            if attachment.content_type and attachment.content_type.startswith('image/'):
-                img_bytes = await attachment.read()
-                num, text = img_validation([{"bytes":img_bytes}])
-                await message.channel.send(f'The text in that image: {text}')
     
+    print(f'here comes a message')
+    try:
+        if message.attachments:
+            for attachment in message.attachments:
+                if attachment.content_type and attachment.content_type.startswith('image/'):
+                    img_bytes = await attachment.read()
+                    num, text = img_validation([{"bytes":img_bytes}])
+                    await message.channel.send(f'The text in that image: {text}')
+    except Exception as e:
+        print(f'Error: {e}')
+        await message.channel.send(f'There is an error: {e}')
     await bot.process_commands(message)
 
 
@@ -118,4 +126,5 @@ async def secret_error(ctx, error):
         await ctx.send(f"Your role doesn't provide the permission to access this command.")
         
     
-bot.run(token, log_handler=handler, log_level=logging.DEBUG)
+if __name__ == '__main__':
+    asyncio.run(main())
