@@ -6,6 +6,7 @@ import os
 import asyncio
 from ocr_check import img_validation
 from db_bot import create_db_pool
+from db_bot import add_points, create_user, get_user
 
 load_dotenv()
 
@@ -19,11 +20,32 @@ logging.basicConfig(filename='discord.log', encoding='utf-8', level=logging.DEBU
 
 bot=commands.Bot(command_prefix='&', intents=intents)
 
+# Declaring the important channel variables
+general_channel = None
+scores_channel = None
+announcement_channel = None
+
 # The events that occurs automatically -------------------------------------------
 
 @bot.event
 async def on_ready():
+    global general_channel, scores_channel, announcement_channel
     print(f"We are Ready to go in {bot.user.name}")
+    for guild in bot.guilds:
+        if guild.name == "ArijitBHH265's server":
+            general_channel = discord.utils.find(
+                lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
+                guild.text_channels
+            )
+            scores_channel = discord.utils.find(
+                lambda c: c.name.lower() == 'member-scores' and isinstance(c, discord.TextChannel),
+                guild.text_channels
+            )
+            announcement_channel = discord.utils.find(
+                lambda c: c.name.lower() == 'announcements' and isinstance(c, discord.TextChannel), 
+                guild.text_channels
+            )
+            
     
 async def main():
     await create_db_pool()
@@ -39,6 +61,11 @@ async def on_guild_join(guild):
         lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
         guild.text_channels
     )
+    await guild.chunk()
+    members=guild.members
+    for member in members:
+        await create_user(user_id=member.id)
+        
     if general_channel:
         intro_msg = "Hello @everyone, I'm the new aide for the owner of this server. My name is Popo, You may call me Mr.Popo. Happy(😒) to be here. Worthless m@gots."
         await general_channel.send(intro_msg)
@@ -48,6 +75,8 @@ async def on_guild_join(guild):
 @bot.event
 async def on_member_join(member):
     await member.send(f'Welcome to the server {member.name}')
+    await create_user(user_id=member.id)
+    
 
 # The event where the bot may delete an user's message if it contains a certain words
 # @bot.event
@@ -68,11 +97,15 @@ async def on_message(message):
     print(f'here comes a message')
     try:
         if message.attachments:
+            channel_name = message.channel.name.lower()
             for attachment in message.attachments:
                 if attachment.content_type and attachment.content_type.startswith('image/'):
                     img_bytes = await attachment.read()
-                    num, text = img_validation([{"bytes":img_bytes}])
-                    await message.channel.send(f'The text in that image: {text}')
+                    num, text = await img_validation([{"bytes":img_bytes}], channelName=channel_name, userId=message.author.id)
+                    await message.channel.send(f'{text}')
+        else:
+            await add_points(user_id=message.author.id, points_to_add=0.5)
+            
     except Exception as e:
         print(f'Error: {e}')
         await message.channel.send(f'There is an error: {e}')
@@ -104,6 +137,11 @@ async def remove(ctx, roleName):
         await ctx.send(f'The {roleName.capitalize()} role is taken away from {ctx.author.mention}')
     else:
         await ctx.send(f'Role does not exist!')
+
+@bot.command()
+async def myScore(ctx):
+    score=await get_user(user_id=ctx.author.id)
+    await scores_channel.send(f"{ctx.author.mention}, Your scores are - \n Score - {score['score']} \n Role - {score['role']}")
 
 # Command to create a poll 
 @bot.command()
