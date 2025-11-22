@@ -43,12 +43,15 @@ async def img_validation(attachments, channelName, userId):
             try:
                 img_bytes = attachment["bytes"]
                 pil_img = Image.open(io.BytesIO(img_bytes)).convert('RGB')
-                # img.thumbnail((720 , 1280))
+                pil_img.thumbnail((720 , 1280))
             
                 text=pytesseract.image_to_string(pil_img)
-                if text=="Your opponent forfeited the match.":
+                if "opponent" and "forfeited" in text:
+                    text+=" You get 15 points"
                     await add_points(user_id=userId, points_to_add=15)
-            
+                else:
+                    text+=" You get 5 points"
+                    await add_points(user_id=userId, points_to_add=5)
             except Exception as e:
                 print(f'Error processing image {idx + 1}: {e}')
                 continue
@@ -72,5 +75,9 @@ async def img_validation(attachments, channelName, userId):
                 print(f'Error processing match image {idx + 1}: {e}')
                 text = f"Error: {e}"
                 continue
+            
+    else:
+        await add_points(user_id=userId, points_to_add=5) 
+        
         
     return valid_count, text

@@ -1,12 +1,17 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import logging
 from dotenv import load_dotenv
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 import os
 import asyncio
+import datetime
+import zoneinfo
 from ocr_check import img_validation
 from db_bot import create_db_pool
-from db_bot import add_points, create_user, get_user
+from db_bot import add_points, create_user, get_user, update_user
 
 load_dotenv()
 
@@ -24,12 +29,61 @@ bot=commands.Bot(command_prefix='&', intents=intents)
 general_channel = None
 scores_channel = None
 announcement_channel = None
+roles_log_channel = None
+IST = zoneinfo.ZoneInfo("Asia/Kolkata")
+scheduler = AsyncIOScheduler(timezone=IST)
+mileStones = ["Human", "Guardian", "Saiyan", "Demon", "Kai", "Destroyer", "Angel"]
 
+# Utils functions to be used ----------------------------------------------------
+# function to update the user roles in the server
+async def assign_role(member, roleName):
+    roleAssign=discord.utils.get(member.guild.roles, name=roleName.capitalize()) 
+    if roleAssign:
+        await member.add_roles(roleAssign)
+        await roles_log_channel.send(f"{member.mention} was assigned the {roleName}")
+    else:
+        print("Role doesn't exist")
+
+# Function to fetch data of all the members in the server and update their roles
+async def hourly_check(guild):
+    members=guild.members
+    for member in members:
+        if member.bot:
+            continue
+        if any(r.name == "God" for r in member.roles):
+            continue
+        
+        currentRole=None
+        for r in member.roles:
+            if r.name in mileStones: currentRole=r;break
+        
+        if currentRole==None:continue
+        
+        userData=await get_user(user_id=member.id)
+        role=userData['role']
+        if currentRole.name != role:
+            await member.remove_roles(currentRole)
+            await assign_role(member=member, roleName=role)
+        else: continue
+
+# Funtion that resets Scores and roles of the users on monthly basis
+async def monthly_reset(guild):
+    members=guild.members
+    await roles_log_channel.send("Starting the monthly reset process!")
+    for member in members:
+        if member.bot:continue
+        if any(r.name == "God" for r in member.roles):
+            continue
+        
+        await update_user(user_id=member.id, role="Human", score=0)
+        await assign_role(member=member, roleName="Human")
+    await roles_log_channel.send("Monthly reset process has been completed.\n@everyone, Your scores and roles have been reset.")
+        
+        
 # The events that occurs automatically -------------------------------------------
-
 @bot.event
 async def on_ready():
-    global general_channel, scores_channel, announcement_channel
+    global general_channel, scores_channel, announcement_channel, roles_log_channel
     print(f"We are Ready to go in {bot.user.name}")
     for guild in bot.guilds:
         if guild.name == "ArijitBHH265's server":
@@ -45,6 +99,16 @@ async def on_ready():
                 lambda c: c.name.lower() == 'announcements' and isinstance(c, discord.TextChannel), 
                 guild.text_channels
             )
+            roles_log_channel = discord.utils.find(
+                lambda c: c.name.lower()=='roles-log' and isinstance(c, discord.TextChannel),
+                guild.text_channels
+            )
+            scheduler_setup(guild)
+            break
+    scheduler.start()
+    good_morning_msg.start()
+    good_night_msg.start()
+    
             
     
 async def main():
@@ -64,10 +128,14 @@ async def on_guild_join(guild):
     await guild.chunk()
     members=guild.members
     for member in members:
+        if member.bot:
+            continue
+        if "God" in member.roles:
+            continue
         await create_user(user_id=member.id)
         
     if general_channel:
-        intro_msg = "Hello @everyone, I'm the new aide for the owner of this server. My name is Popo, You may call me Mr.Popo. Happy(😒) to be here. Worthless m@gots."
+        intro_msg = "Hello @everyone, I'm the new bot for this server. \nMy name is Popo, You may call me Mr.Popo. Worthless m@gots.\nPlease follow the rules (I'll create them)\nAnd finally don't piss me off or I'll piss on your mouth my cucumber."
         await general_channel.send(intro_msg)
     
     
@@ -76,6 +144,7 @@ async def on_guild_join(guild):
 async def on_member_join(member):
     await member.send(f'Welcome to the server {member.name}')
     await create_user(user_id=member.id)
+    await assign_role(member=member, roleName="Human")
     
 
 # The event where the bot may delete an user's message if it contains a certain words
@@ -102,7 +171,7 @@ async def on_message(message):
                 if attachment.content_type and attachment.content_type.startswith('image/'):
                     img_bytes = await attachment.read()
                     num, text = await img_validation([{"bytes":img_bytes}], channelName=channel_name, userId=message.author.id)
-                    await message.channel.send(f'{text}')
+                    if text!=None: await message.channel.send(f'{text}')
         else:
             await add_points(user_id=message.author.id, points_to_add=0.5)
             
@@ -131,17 +200,34 @@ async def assign(ctx, roleName):
 # Command to remove a role from someone
 @bot.command()
 async def remove(ctx, roleName):
-    role = discord.utils.get(ctx.guild.roles, name =roleName.capitalize())
+    role = discord.utils.get(ctx.guild.roles, name=roleName.capitalize())
     if role:
         await ctx.author.remove_roles(role)
         await ctx.send(f'The {roleName.capitalize()} role is taken away from {ctx.author.mention}')
     else:
         await ctx.send(f'Role does not exist!')
+        
+# Command to promote ones role in the guild
+@bot.command()
+async def promote(ctx):
+    currentRole = None
+    for r in ctx.author.roles:
+        if r.name in mileStones:currentRole=r;break
+    
+    userData = await get_user(user_id=ctx.author.id)
+    promoteRole = userData['role']
+    if currentRole and currentRole.name == promoteRole:
+        await roles_log_channel.send(f"{ctx.author.mention}, you are already a {currentRole}.\nCan't promote.")
+    else:
+        await ctx.author.remove_roles(currentRole)
+        await assign_role(member=ctx.author, roleName=promoteRole)
+        await roles_log_channel.send(f"{ctx.author.mention} just got promoted to {promoteRole}.\nCongrats gooner 👏")
 
+# Command to check the scores of the user
 @bot.command()
 async def myScore(ctx):
     score=await get_user(user_id=ctx.author.id)
-    await scores_channel.send(f"{ctx.author.mention}, Your scores are - \n Score - {score['score']} \n Role - {score['role']}")
+    await scores_channel.send(f"{ctx.author.mention}, Your scores are - \nScore - {score['score']} \nRole - {score['role']}")
 
 # Command to create a poll 
 @bot.command()
@@ -163,6 +249,44 @@ async def secret_error(ctx, error):
     if isinstance(error, commands.MissingRole):
         await ctx.send(f"Your role doesn't provide the permission to access this command.")
         
+# Automated tasks that run in the background ----------------------------------------------
+
+# Good Morning message (Good morning Pinapple! Looking very good very nice.)
+@tasks.loop(time=datetime.time(hour=8, minute=35, tzinfo=IST))
+async def good_morning_msg():
+    if general_channel:
+        await general_channel.send("Good Morning @everyone!\nRise and Rush M@gots 🌚")
+
+# Good Night message 
+@tasks.loop(time=datetime.time(hour=22, minute=35, tzinfo=IST))
+async def good_night_msg():
+    if general_channel:
+        await general_channel.send("Good Night @everyone!\nThat's enough gooning for one day 😶‍🌫️")
+
+
+def scheduler_setup(guild):
+    # Hourly checks to update user Roles
+    scheduler.add_job(
+        hourly_check,
+        IntervalTrigger(hours=1),
+        kwargs={"guild":guild}
+        )
+    # Monthly Scores and Roles reset
+    scheduler.add_job(
+        monthly_reset,
+        CronTrigger(day=1, hour=8, minute=0, timezone=IST),
+        kwargs={"guild":guild}
+    )
+    
+
+# Buffer for the automated tasks    
+@good_morning_msg.before_loop
+async def before_morning():
+    await bot.wait_until_ready()
+    
+@good_night_msg.before_loop
+async def before_night():
+    await bot.wait_until_ready()
     
 if __name__ == '__main__':
     asyncio.run(main())

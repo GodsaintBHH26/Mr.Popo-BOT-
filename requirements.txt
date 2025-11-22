@@ -5,4 +5,5 @@ pytesseract
 opencv-python
 imagehash
 asyncpg
-opencv-python
+tzdata
+APScheduler
