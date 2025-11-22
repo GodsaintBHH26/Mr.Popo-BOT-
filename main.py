@@ -86,7 +86,7 @@ async def on_ready():
     global general_channel, scores_channel, announcement_channel, roles_log_channel
     print(f"We are Ready to go in {bot.user.name}")
     for guild in bot.guilds:
-        if guild.name == "ArijitBHH265's server":
+        if guild.name == "G0Dsaint's server":
             general_channel = discord.utils.find(
                 lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
                 guild.text_channels
