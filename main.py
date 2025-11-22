@@ -167,7 +167,9 @@ async def on_guild_join(guild):
 # The event that occurs when a new member joins the server
 @bot.event
 async def on_member_join(member):
-    await member.send(f'Welcome to the server {member.name}')
+    general_channel=guild_channels[member.guild.id]["general"]
+    if general_channel:
+        await general_channel.send(f'Welcome to the server {member.mention}')
     await create_user(user_id=member.id)
     await assign_role(member=member, roleName="Human")
     
