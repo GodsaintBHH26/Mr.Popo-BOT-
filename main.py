@@ -26,10 +26,7 @@ logging.basicConfig(filename='discord.log', encoding='utf-8', level=logging.DEBU
 bot=commands.Bot(command_prefix='&', intents=intents)
 
 # Declaring the important channel variables
-general_channel = None
-scores_channel = None
-announcement_channel = None
-roles_log_channel = None
+guild_channels = {}
 IST = zoneinfo.ZoneInfo("Asia/Kolkata")
 scheduler = AsyncIOScheduler(timezone=IST)
 mileStones = ["Human", "Guardian", "Saiyan", "Demon", "Kai", "Destroyer", "Angel"]
@@ -37,6 +34,7 @@ mileStones = ["Human", "Guardian", "Saiyan", "Demon", "Kai", "Destroyer", "Angel
 # Utils functions to be used ----------------------------------------------------
 # function to update the user roles in the server
 async def assign_role(member, roleName):
+    roles_log_channel=guild_channels[member.guild.id]["roles"]
     roleAssign=discord.utils.get(member.guild.roles, name=roleName.capitalize()) 
     if roleAssign:
         await member.add_roles(roleAssign)
@@ -68,6 +66,7 @@ async def hourly_check(guild):
 
 # Funtion that resets Scores and roles of the users on monthly basis
 async def monthly_reset(guild):
+    roles_log_channel=guild_channels[guild.id]["roles"]
     members=guild.members
     await roles_log_channel.send("Starting the monthly reset process!")
     for member in members:
@@ -78,37 +77,54 @@ async def monthly_reset(guild):
         await update_user(user_id=member.id, role="Human", score=0)
         await assign_role(member=member, roleName="Human")
     await roles_log_channel.send("Monthly reset process has been completed.\n@everyone, Your scores and roles have been reset.")
+    
+async def guild_setup(guild):
+        print(f"🔧 Setting up guild: {guild.name} (ID: {guild.id})")
+    
+        # List all available channels for debugging
+        print("Available text channels:")
+        for channel in guild.text_channels:
+            print(f"  - {channel.name} (ID: {channel.id})")
+                
+        general_channel = discord.utils.find(
+                lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
+                guild.text_channels
+            )
+        scores_channel = discord.utils.find(
+                lambda c: c.name.lower() == 'member-scores' and isinstance(c, discord.TextChannel),
+                guild.text_channels
+            )
+        announcement_channel = discord.utils.find(
+                lambda c: c.name.lower() == 'announcements' and isinstance(c, discord.TextChannel), 
+                guild.text_channels
+            )
+        roles_log_channel = discord.utils.find(
+                lambda c: c.name.lower()=='roles-log' and isinstance(c, discord.TextChannel),
+                guild.text_channels
+            )
+        guild_channels[guild.id]={
+            "general":general_channel,
+            "scores":scores_channel,
+            "announcement":announcement_channel,
+            "roles":roles_log_channel
+        }
+        # scheduler_setup(guild)
+        print("Setup complete")
         
         
 # The events that occurs automatically -------------------------------------------
 @bot.event
 async def on_ready():
-    global general_channel, scores_channel, announcement_channel, roles_log_channel
     print(f"We are Ready to go in {bot.user.name}")
     for guild in bot.guilds:
-        if guild.name == "G0Dsaint's server":
-            general_channel = discord.utils.find(
-                lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
-                guild.text_channels
-            )
-            scores_channel = discord.utils.find(
-                lambda c: c.name.lower() == 'member-scores' and isinstance(c, discord.TextChannel),
-                guild.text_channels
-            )
-            announcement_channel = discord.utils.find(
-                lambda c: c.name.lower() == 'announcements' and isinstance(c, discord.TextChannel), 
-                guild.text_channels
-            )
-            roles_log_channel = discord.utils.find(
-                lambda c: c.name.lower()=='roles-log' and isinstance(c, discord.TextChannel),
-                guild.text_channels
-            )
-            scheduler_setup(guild)
-            break
+        if guild.id not in guild_channels:
+            await guild_setup(guild=guild)
+        
+        scheduler_setup(guild)
+        good_morning_msg.start(guild)
+        good_night_msg.start(guild)
+        
     scheduler.start()
-    good_morning_msg.start()
-    good_night_msg.start()
-    
             
     
 async def main():
@@ -121,22 +137,27 @@ async def main():
 # The event that will occur when the bot joins a server for the first time
 @bot.event
 async def on_guild_join(guild):
-    general_channel = discord.utils.find(
-        lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
-        guild.text_channels
-    )
-    await guild.chunk()
+    print(f"Bot joined guild: {guild.name} (ID: {guild.id})")
+    
+    await guild.fetch_channels()
+    await guild_setup(guild=guild)
+    general_channel=guild_channels[guild.id]["general"]
+    announcement_channel=guild_channels[guild.id]["announcement"]
+    
+    if general_channel:
+        intro_msg = "Hello @everyone, I'm the new bot for this server. \nMy name is Popo, You may call me Mr.Popo. Worthless m@gots.\nPlease check the announcement channel for more information regarding my functions and stuff."
+        await general_channel.send(intro_msg)
+    
     members=guild.members
     for member in members:
         if member.bot:
             continue
-        if "God" in member.roles:
+        if any(r.name == "God" for r in member.roles):
             continue
+        
         await create_user(user_id=member.id)
         
-    if general_channel:
-        intro_msg = "Hello @everyone, I'm the new bot for this server. \nMy name is Popo, You may call me Mr.Popo. Worthless m@gots.\nPlease follow the rules (I'll create them)\nAnd finally don't piss me off or I'll piss on your mouth my cucumber."
-        await general_channel.send(intro_msg)
+    
     
     
 # The event that occurs when a new member joins the server
@@ -210,6 +231,7 @@ async def remove(ctx, roleName):
 # Command to promote ones role in the guild
 @bot.command()
 async def promote(ctx):
+    roles_log_channel=guild_channels[ctx.author.guild.id]["roles"]
     currentRole = None
     for r in ctx.author.roles:
         if r.name in mileStones:currentRole=r;break
@@ -226,6 +248,7 @@ async def promote(ctx):
 # Command to check the scores of the user
 @bot.command()
 async def myScore(ctx):
+    scores_channel=guild_channels[ctx.author.guild.id]["scores"]
     score=await get_user(user_id=ctx.author.id)
     await scores_channel.send(f"{ctx.author.mention}, Your scores are - \nScore - {score['score']} \nRole - {score['role']}")
 
@@ -253,13 +276,15 @@ async def secret_error(ctx, error):
 
 # Good Morning message (Good morning Pinapple! Looking very good very nice.)
 @tasks.loop(time=datetime.time(hour=8, minute=35, tzinfo=IST))
-async def good_morning_msg():
+async def good_morning_msg(guild):
+    general_channel=guild_channels[guild.id]["general"]
     if general_channel:
         await general_channel.send("Good Morning @everyone!\nRise and Rush M@gots 🌚")
 
 # Good Night message 
 @tasks.loop(time=datetime.time(hour=22, minute=35, tzinfo=IST))
-async def good_night_msg():
+async def good_night_msg(guild):
+    general_channel=guild_channels[guild.id]["general"]
     if general_channel:
         await general_channel.send("Good Night @everyone!\nThat's enough gooning for one day 😶‍🌫️")
 
