@@ -2,7 +2,7 @@ discord.py
 python-dotenv
 pillow
 pytesseract
-opencv-python
+opencv-python-headless
 imagehash
 asyncpg
 tzdata
