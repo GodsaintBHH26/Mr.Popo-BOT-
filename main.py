@@ -146,7 +146,11 @@ async def on_guild_join(guild):
     
     if general_channel:
         intro_msg = "Hello @everyone, I'm the new bot for this server. \nMy name is Popo, You may call me Mr.Popo. Worthless m@gots.\nPlease check the announcement channel for more information regarding my functions and stuff."
+        
+        announcement_msg="**Notice**\nHey everyone, to use my command sets you have to use *&* as the prefix before the command.\n*Here are my command sets -*\n1. hello - just saying hi to mr.popo.\n2. myScore - to see your scores and roles.\n3. promote - to promote your role if you reach the next role milestone. (Mr.popo automatically updates your role every hour, but if you can't wait then use this)\n4. poll - to create a poll (add the text after calling this command)\n These are functions that work for now.\nFeel free to use them, but use them in moderation.\n \n**Points Structure**\n1. Text - 0.5\n2. Image/GIF/videos - 5\n3. Squadra match win - 10\n4. Squadra match lose - 5\n 5. DBL forfeit Screens - 15\n \n**Role Milestone**\n1. Human - (0 - 99)\n2. Guardian - (100 - 199)\n3. Saiyan - (200 - 299)\n4. Demon - (300 - 399)\n5. kai - (400 - 499)\n6. Destroyer - (500 - 599)\n7. Angel -(600+ )\n *END OF MESSAGE*"
+        
         await general_channel.send(intro_msg)
+        await announcement_channel.send(announcement_msg)
     
     members=guild.members
     for member in members:
