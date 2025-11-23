@@ -121,8 +121,10 @@ async def on_ready():
             await guild_setup(guild=guild)
         
         scheduler_setup(guild)
-        good_morning_msg.start(guild)
-        good_night_msg.start(guild)
+    if not good_morning_msg.is_running():
+        good_morning_msg.start()
+    if not good_night_msg.is_running():
+        good_night_msg.start()
         
     scheduler.start()
             
@@ -282,31 +284,37 @@ async def secret_error(ctx, error):
 
 # Good Morning message (Good morning Pinapple! Looking very good very nice.)
 @tasks.loop(time=datetime.time(hour=8, minute=35, tzinfo=IST))
-async def good_morning_msg(guild):
-    general_channel=guild_channels[guild.id]["general"]
-    if general_channel:
-        await general_channel.send("Good Morning @everyone!\nRise and Rush M@gots 🌚")
+async def good_morning_msg():
+    for guild in bot.guilds:
+        general_channel=guild_channels[guild.id]["general"]
+        if general_channel:
+            await general_channel.send("Good Morning @everyone!\nRise and Rush M@gots 🌚")
 
 # Good Night message 
 @tasks.loop(time=datetime.time(hour=22, minute=35, tzinfo=IST))
-async def good_night_msg(guild):
-    general_channel=guild_channels[guild.id]["general"]
-    if general_channel:
-        await general_channel.send("Good Night @everyone!\nThat's enough gooning for one day 😶‍🌫️")
+async def good_night_msg():
+    for guild in bot.guilds:
+        general_channel=guild_channels[guild.id]["general"]
+        if general_channel:
+            await general_channel.send("Good Night @everyone!\nThat's enough gooning for one day 😶‍🌫️")
 
 
 def scheduler_setup(guild):
+    hourly_id=f"hourly_check_{guild.id}"
+    monthly_id=f"monthly_reset_{guild.id}"
     # Hourly checks to update user Roles
     scheduler.add_job(
         hourly_check,
         IntervalTrigger(hours=1),
-        kwargs={"guild":guild}
+        kwargs={"guild":guild},
+        id=hourly_id
         )
     # Monthly Scores and Roles reset
     scheduler.add_job(
         monthly_reset,
         CronTrigger(day=1, hour=8, minute=0, timezone=IST),
-        kwargs={"guild":guild}
+        kwargs={"guild":guild},
+        id=monthly_id
     )
     
 
