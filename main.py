@@ -55,14 +55,16 @@ async def hourly_check(guild):
         for r in member.roles:
             if r.name in mileStones: currentRole=r;break
         
-        if currentRole==None:continue
+
         
         userData=await get_user(user_id=member.id)
         role=userData['role']
-        if currentRole.name != role:
+
+        if currentRole is None:
+            await assign_role(member=member, roleName="Human")
+        elif currentRole.name != role:
             await member.remove_roles(currentRole)
             await assign_role(member=member, roleName=role)
-        else: continue
 
 # Funtion that resets Scores and roles of the users on monthly basis
 async def monthly_reset(guild):
@@ -80,34 +82,34 @@ async def monthly_reset(guild):
     
 async def guild_setup(guild):
         print(f"🔧 Setting up guild: {guild.name} (ID: {guild.id})")
-    
+        await guild.fetch_channels()
         # List all available channels for debugging
         print("Available text channels:")
         for channel in guild.text_channels:
             print(f"  - {channel.name} (ID: {channel.id})")
-                
-        general_channel = discord.utils.find(
-                lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
-                guild.text_channels
-            )
-        scores_channel = discord.utils.find(
-                lambda c: c.name.lower() == 'member-scores' and isinstance(c, discord.TextChannel),
-                guild.text_channels
-            )
-        announcement_channel = discord.utils.find(
-                lambda c: c.name.lower() == 'announcements' and isinstance(c, discord.TextChannel), 
-                guild.text_channels
-            )
-        roles_log_channel = discord.utils.find(
-                lambda c: c.name.lower()=='roles-log' and isinstance(c, discord.TextChannel),
-                guild.text_channels
-            )
-        guild_channels[guild.id]={
-            "general":general_channel,
-            "scores":scores_channel,
-            "announcement":announcement_channel,
-            "roles":roles_log_channel
-        }
+        if guild.id not in guild_channels:        
+            general_channel = discord.utils.find(
+                    lambda c: c.name.lower() == 'general' and isinstance(c, discord.TextChannel),
+                    guild.text_channels
+                )
+            scores_channel = discord.utils.find(
+                    lambda c: c.name.lower() == 'member-scores' and isinstance(c, discord.TextChannel),
+                    guild.text_channels
+                )
+            announcement_channel = discord.utils.find(
+                    lambda c: c.name.lower() == 'announcements' and isinstance(c, discord.TextChannel), 
+                    guild.text_channels
+                )
+            roles_log_channel = discord.utils.find(
+                    lambda c: c.name.lower()=='roles-log' and isinstance(c, discord.TextChannel),
+                    guild.text_channels
+                )
+            guild_channels[guild.id]={
+                "general":general_channel,
+                "scores":scores_channel,
+                "announcement":announcement_channel,
+                "roles":roles_log_channel
+             }
         # scheduler_setup(guild)
         print("Setup complete")
         
@@ -242,12 +244,15 @@ async def promote(ctx):
     roles_log_channel=guild_channels[ctx.author.guild.id]["roles"]
     currentRole = None
     for r in ctx.author.roles:
-        if r.name in mileStones:currentRole=r;break
+        if r.name in mileStones:
+            currentRole=r
+            break
     
     userData = await get_user(user_id=ctx.author.id)
     promoteRole = userData['role']
     if currentRole and currentRole.name == promoteRole:
         await roles_log_channel.send(f"{ctx.author.mention}, you are already a {currentRole}.\nCan't promote.")
+    elif currentRole is None: await assign_role(member=ctx.author, roleName=promoteRole)
     else:
         await ctx.author.remove_roles(currentRole)
         await assign_role(member=ctx.author, roleName=promoteRole)
@@ -303,19 +308,23 @@ def scheduler_setup(guild):
     hourly_id=f"hourly_check_{guild.id}"
     monthly_id=f"monthly_reset_{guild.id}"
     # Hourly checks to update user Roles
-    scheduler.add_job(
-        hourly_check,
-        IntervalTrigger(hours=1),
-        kwargs={"guild":guild},
-        id=hourly_id
+    if scheduler.get_job(hourly_id) is None:
+        scheduler.add_job(
+            hourly_check,
+            IntervalTrigger(hours=1),
+            kwargs={"guild":guild},
+            id=hourly_id
         )
+    else: print(f"Job already exist! - {guild.name}_hourly")
     # Monthly Scores and Roles reset
-    scheduler.add_job(
-        monthly_reset,
-        CronTrigger(day=1, hour=8, minute=0, timezone=IST),
-        kwargs={"guild":guild},
-        id=monthly_id
-    )
+    if scheduler.get_job(monthly_id) is None:
+        scheduler.add_job(
+            monthly_reset,
+            CronTrigger(day=1, hour=8, minute=0, timezone=IST),
+            kwargs={"guild":guild},
+            id=monthly_id
+        )
+    else: print(f"Job already exist! - {guild.name}_monthly")
     
 
 # Buffer for the automated tasks    
