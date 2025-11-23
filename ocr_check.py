@@ -38,7 +38,7 @@ async def img_validation(attachments, channelName, userId):
     valid_count = 0
     text = None
     
-    if channelName == "forfiet-screens":
+    if channelName == "forfeit-screens":
         for idx, attachment in enumerate(attachments):
             try:
                 img_bytes = attachment["bytes"]
