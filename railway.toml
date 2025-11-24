@@ -1,7 +1,5 @@
 [build]
-commands = [
-  "apt-get update",
-  "apt-get install -y tesseract-ocr",
-  "apt-get install -y tesseract-ocr-eng",
-  "pip install -r requirements.txt"
-]
+builder = "NIXPACKS"
+
+[nixpacks]
+packages = ["tesseract", "tesseract-data-eng"]
