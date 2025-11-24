@@ -3,3 +3,6 @@ builder = "NIXPACKS"
 
 [nixpacks]
 packages = ["tesseract", "tesseract-data-eng"]
+
+[start]
+cmd = "python main.py"
