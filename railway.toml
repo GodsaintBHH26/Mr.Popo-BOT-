@@ -1,8 +1,9 @@
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE" # Change from NIXPACKS to DOCKERFILE
 
-[build.nixpacks]
-packages = ["tesseract-ocr", "tesseract-ocr-eng"]
+# The following section is no longer needed since we're using a Dockerfile
+# [build.nixpacks]
+# packages = ["tesseract-ocr", "tesseract-ocr-eng"]
 
 [start]
 cmd = "python main.py"
