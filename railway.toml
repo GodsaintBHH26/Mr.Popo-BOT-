@@ -1,7 +1,7 @@
 [build]
 builder = "NIXPACKS"
 
-[nixpacks]
+[build.nixpacks]
 packages = ["tesseract", "tesseract-data-eng"]
 
 [start]
