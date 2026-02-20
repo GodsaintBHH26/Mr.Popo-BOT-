@@ -1,0 +1,6 @@
+services:
+  - type: worker
+    name: discord-bot
+    env: docker
+    plan: starter
+    dockerfilePath: ./Dockerfile
